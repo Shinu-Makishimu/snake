@@ -40,6 +40,9 @@ impl GameSnake {
     }
 
     pub fn change_direction(&mut self, direction: Direction) {
+        if self.loose {
+            return;
+        }
         match (&self.direction, direction) {
             (Direction::Top, Direction::Right) => self.direction = Direction::Right,
             (Direction::Top, Direction::Left) => self.direction = Direction::Left,
