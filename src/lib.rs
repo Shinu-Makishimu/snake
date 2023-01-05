@@ -5,19 +5,37 @@ use js_sys::Function;
 use snake::GameSnake;
 use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::{prelude::*, UnwrapThrowExt, JsCast};
-use web_sys::{console, window, HtmlDivElement, HtmlElement};
+use web_sys::{console, window, HtmlDivElement, HtmlElement, KeyboardEvent};
+
+use crate::snake::Direction;
 
 thread_local! {
     static GAME: Rc<RefCell<GameSnake>> = Rc::new(RefCell::new(GameSnake::new(20,20)));
 
     static TICK_CLOSURE: Closure<dyn FnMut()> = Closure::wrap(Box::new({
-        let game = GAME.with(|game| game.clone());
-
-        move || {
-            game.borrow_mut().tick();
+        || {
+            GAME.with(|game| game.borrow_mut().tick());
             render();
         }
     }) as Box<dyn FnMut()>);
+
+    static KEYDOWN_HANDLER: Closure<dyn FnMut(KeyboardEvent)> = Closure::wrap(Box::new({
+        |evt: KeyboardEvent| {
+            GAME.with(|game| {
+                let direction = match &evt.key()[..] {
+                    "ArrowUp" => Some(Direction::Top),
+                    "ArrowDown" => Some(Direction::Bottom),
+                    "ArrowLeft" => Some(Direction::Left),
+                    "ArrowRight" => Some(Direction::Right),
+                    _ => None,
+                };
+                if let Some(direction) = direction {
+                game.borrow_mut().change_direction(direction);
+                }
+            });
+
+        }
+    }) as Box<dyn FnMut(KeyboardEvent)>)
 }
 
 
@@ -35,7 +53,15 @@ pub fn main() {
             )
             .unwrap_throw()
         });
-        render();
+    KEYDOWN_HANDLER.with(|handle_keydown| {
+        window()
+            .unwrap_throw()
+            .add_event_listener_with_callback("keydown", handle_keydown.as_ref().dyn_ref::<Function>().unwrap_throw(),
+            )
+            .unwrap_throw();
+        });
+
+    render();
 }
 
 pub fn render() {
