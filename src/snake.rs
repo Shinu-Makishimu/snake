@@ -7,7 +7,7 @@ use crate::random::random_range;
 pub type Position = (usize,usize);
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum Direction {
     Top,
     Right,
@@ -22,6 +22,7 @@ pub struct GameSnake {
     pub height: usize,
     pub snake: VecDeque<Position>, //hed firts, tail is end
     direction: Direction,
+    next_direction: Direction,
     pub food: Position,
     loose: bool,
 }
@@ -34,6 +35,7 @@ impl GameSnake {
             height, 
             snake: [((width-2).max(0), height/2)].into_iter().collect(), 
             direction: Direction::Left, 
+            next_direction: Direction::Left, 
             food: (2.min(width - 1), height / 2), 
             loose: false,
         }
@@ -44,14 +46,14 @@ impl GameSnake {
             return;
         }
         match (&self.direction, direction) {
-            (Direction::Top, Direction::Right) => self.direction = Direction::Right,
-            (Direction::Top, Direction::Left) => self.direction = Direction::Left,
-            (Direction::Right, Direction::Top) => self.direction = Direction::Top,
-            (Direction::Right, Direction::Bottom) => self.direction = Direction::Bottom,
-            (Direction::Bottom, Direction::Right) => self.direction = Direction::Right,
-            (Direction::Bottom, Direction::Left) => self.direction = Direction::Left,
-            (Direction::Left, Direction::Top) => self.direction = Direction::Top,
-            (Direction::Left, Direction::Bottom) => self.direction = Direction::Bottom,
+            (Direction::Top, Direction::Right) => self.next_direction = Direction::Right,
+            (Direction::Top, Direction::Left) => self.next_direction = Direction::Left,
+            (Direction::Right, Direction::Top) => self.next_direction = Direction::Top,
+            (Direction::Right, Direction::Bottom) => self.next_direction = Direction::Bottom,
+            (Direction::Bottom, Direction::Right) => self.next_direction = Direction::Right,
+            (Direction::Bottom, Direction::Left) => self.next_direction = Direction::Left,
+            (Direction::Left, Direction::Top) => self.next_direction = Direction::Top,
+            (Direction::Left, Direction::Bottom) => self.next_direction = Direction::Bottom,
             _ => {},
         }
     }
@@ -64,6 +66,8 @@ impl GameSnake {
         if self.loose || self.snake.len() == 0 {
             return;
         }
+
+        self.direction = self.next_direction;
 
         let (x,y) = self.snake[0];
 
