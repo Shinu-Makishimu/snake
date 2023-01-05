@@ -9,3 +9,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 wasm-bindgen = "0.2.80"
+web-sys = {version = "0.3.57", features = [
+    "Document","HtmlElement","Element","Window", "console", "CssStyleDeclaration", "HtmlDivElement"
+    ]}
+js-sys = "0.3.57"

@@ -1,110 +1,95 @@
 mod random;
+mod snake;
 
-use std::collections::VecDeque;
+use js_sys::Function;
+use snake::GameSnake;
+use std::{cell::RefCell, rc::Rc};
+use wasm_bindgen::{prelude::*, UnwrapThrowExt, JsCast};
+use web_sys::{console, window, HtmlDivElement, HtmlElement};
 
-use random::random_range;
+thread_local! {
+    static GAME: Rc<RefCell<GameSnake>> = Rc::new(RefCell::new(GameSnake::new(20,20)));
 
+    static TICK_CLOSURE: Closure<dyn FnMut()> = Closure::wrap(Box::new({
+        let game = GAME.with(|game| game.clone());
 
-
-pub type Position = (usize,usize);
-
-
-#[derive(Debug)]
-pub enum Direction {
-    Top,
-    Right,
-    Bottom,
-    Left,
+        move || {
+            game.borrow_mut().tick();
+            render();
+        }
+    }) as Box<dyn FnMut()>);
 }
 
 
-#[derive(Debug)]
-pub struct Snake {
-    width: usize,
-    height: usize,
-    snake: VecDeque<Position>, //hed firts, tail is end
-    direction: Direction,
-    food: Position,
-    loose: bool,
+#[wasm_bindgen(start)]
+pub fn main() {
+    console::log_1(&"...starting...".into());
+
+
+    TICK_CLOSURE.with(|tick_closure| {
+        window()
+            .unwrap_throw()
+            .set_interval_with_callback_and_timeout_and_arguments_0(
+                tick_closure.as_ref().dyn_ref::<Function>().unwrap_throw(),
+                500,
+            )
+            .unwrap_throw()
+        });
+        render();
 }
 
+pub fn render() {
+    let document = window().unwrap_throw().document().unwrap_throw();
 
-impl Snake {
-    pub fn new(width: usize, height: usize) -> Self {
-        Self { 
-            width, 
-            height, 
-            snake: [((width-2).max(0), height/2)].into_iter().collect(), 
-            direction: Direction::Left, 
-            food: (2.min(width - 1), height / 2), 
-            loose: false,
-        }
-    }
+    let root_container = document
+        .get_element_by_id("root")
+        .unwrap_throw()
+        .dyn_into::<HtmlElement>()
+        .unwrap_throw()
+        ;
 
-    pub fn change_direction(&mut self, direction: Direction) {
-        match (&self.direction, direction) {
-            (Direction::Top, Direction::Right) => self.direction = Direction::Right,
-            (Direction::Top, Direction::Left) => self.direction = Direction::Left,
-            (Direction::Right, Direction::Top) => self.direction = Direction::Top,
-            (Direction::Right, Direction::Bottom) => self.direction = Direction::Bottom,
-            (Direction::Bottom, Direction::Right) => self.direction = Direction::Right,
-            (Direction::Bottom, Direction::Left) => self.direction = Direction::Left,
-            (Direction::Left, Direction::Top) => self.direction = Direction::Top,
-            (Direction::Left, Direction::Bottom) => self.direction = Direction::Bottom,
-            _ => {},
-        }
-    }
+    root_container.set_inner_html("");
 
-    pub fn is_valid(&self, (x,y): Position) -> bool {
-        x < self.width && y < self.height 
-    }
+    let width = GAME.with(|game| game.borrow().width);
+    let height = GAME.with(|game| game.borrow().height);
 
-    pub fn tick(&mut self) {
-        if self.loose || self.snake.len() == 0 {
-            return;
-        }
+    root_container
+        .style()
+        .set_property("display", "inline-grid")
+        .unwrap_throw();
 
-        let (x,y) = self.snake[0];
+    root_container
+        .style()
+        .set_property(
+            "grid-template",
+            &format!(
+                "repeat({}, auto) / repeat({}, auto)", 
+                width,
+                height
+            ),
+        )
+        .unwrap_throw();
 
-        let new_head = match &self.direction {
-            Direction::Top => (x, y-1),
-            Direction::Right => (x + 1, y),
-            Direction::Bottom => (x, y + 1),
-            Direction::Left => (x- 1, y),
-        };
+    for y in 0..height {
+        for x in 0..width {
+            let pos = (x,y);
 
-
-        if !self.is_valid(new_head) || self.snake.contains(&new_head) {
-            self.loose = true;
-        } else {
-            if new_head != self.food {
-                self.snake.pop_back();
-            } else {
-                let free_pos = (0..self.height)
-                    .flat_map(|y| (0..self.width).map(move |x| (x,y)))
-                    .filter(|pos| !self.snake.contains(pos))
-                    .collect::<Vec<_>>();
-                if free_pos.is_empty() {
-                    self.loose = true;
-                    return;
+            let field_element = document
+                .create_element("div")
+                .unwrap_throw()
+                .dyn_into::<HtmlDivElement>()
+                .unwrap_throw();
+            field_element.set_inner_text({
+                if pos == GAME.with(|game| game.borrow().food) {
+                    "🍕"
+                } else if GAME.with(|game| game.borrow().snake.contains(&pos)){
+                    "❇️"
+                } else {
+                    "🟩"
                 }
+            });
 
-                self.food  = free_pos[(random_range(0, free_pos.len()))]
-            }
-            self.snake.push_front(new_head);
+            root_container.append_child(&field_element).unwrap_throw();
         }
-    }
-}
-
-
-
-
-#[cfg(test)]
-mod tests {
-    use crate::Snake;
-
-    #[test]
-    fn test_snake() {
-        println!("{:?}", Snake::new(10,10));
     }
 }
